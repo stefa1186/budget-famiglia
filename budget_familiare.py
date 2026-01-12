@@ -4,7 +4,7 @@ import pandas as pd
 # -----------------------------------------------------------------------------
 # 0. CONFIGURAZIONE PAGINA
 # -----------------------------------------------------------------------------
-st.set_page_config(page_title="Finanze Familiari v4 (Accumulo)", page_icon="🇨🇭", layout="wide")
+st.set_page_config(page_title="Finanze Familiari v5 (Bonus)", page_icon="🇨🇭", layout="wide")
 
 # -----------------------------------------------------------------------------
 # 1. INPUT (BARRA LATERALE - SINISTRA)
@@ -16,11 +16,17 @@ with st.sidebar:
     st.header("1. Stipendi")
     
     st.subheader("Stefano")
-    lohn_stefano = st.number_input("Salario Versato (Netto)", value=8500.0, step=50.0, key="stef_sal")
+    lohn_stefano = st.number_input("Salario Versato Mese (Netto)", value=8500.0, step=50.0, key="stef_sal")
     zulagen_stefano = st.number_input("di cui Assegni Familiari", value=250.0, step=50.0, key="stef_ass")
     
+    # NUOVO: Bonus Annuale
+    bonus_annuale_stefano = st.number_input("Bonus/Variabile Annuale (Netto)", value=12000.0, step=500.0, key="stef_bonus", help="Verrà diviso per 12 per il calcolo")
+    bonus_mensile = bonus_annuale_stefano / 12
+    if bonus_annuale_stefano > 0:
+        st.caption(f"Impact mensile: + CHF {bonus_mensile:,.2f}")
+
     st.subheader("Stephanie")
-    lohn_stephanie = st.number_input("Salario Versato (Netto)", value=5000.0, step=50.0, key="steph_sal")
+    lohn_stephanie = st.number_input("Salario Versato Mese (Netto)", value=5000.0, step=50.0, key="steph_sal")
     zulagen_stephanie = st.number_input("di cui Assegni Familiari", value=250.0, step=50.0, key="steph_ass")
     
     st.markdown("---")
@@ -64,9 +70,12 @@ with st.sidebar:
 # -----------------------------------------------------------------------------
 
 # A. Reddito Reale (Ricostruzione imponibile per il Ratio)
-# Nota: Gli assegni vengono tolti dal calcolo del "peso economico" perché sono extra.
-basis_stefano = lohn_stefano - zulagen_stefano
+# Stefano: Stipendio base (senza assegni) + 1/12 del bonus annuale
+basis_stefano = (lohn_stefano - zulagen_stefano) + bonus_mensile
+
+# Stephanie: Stipendio base (senza assegni) + Salute riaggiunta
 basis_stephanie = (lohn_stephanie - zulagen_stephanie) + total_abzug_kk
+
 total_basis = basis_stefano + basis_stephanie
 
 # B. Ratio (Percentuali)
@@ -77,11 +86,10 @@ else:
     quote_stefano = 0.5
     quote_stephanie = 0.5
 
-# C. Finanziamento Budget (LOGICA CAMBIATA v4)
-# Gli assegni sono "On Top" (Soldi gratis).
-# Le spese comuni vengono divise interamente sugli stipendi.
+# C. Finanziamento Budget
+# Assegni ON TOP (non sottratti)
 total_zulagen = zulagen_stefano + zulagen_stephanie
-restfinanzierung = budget_ziel # Nessuna sottrazione degli assegni qui!
+restfinanzierung = budget_ziel 
 
 transfer_stefano_budget = restfinanzierung * quote_stefano
 transfer_stephanie_budget = restfinanzierung * quote_stephanie
@@ -94,23 +102,21 @@ schuld_stefano_total = anteil_stefano_kk + (anteil_kinder_kk * quote_stefano)
 # -----------------------------------------------------------------------------
 
 st.title("🇨🇭 Gestione Finanze: Stefano & Stephanie")
-st.caption("Modalità: Assegni = Risparmio Extra (On Top)")
+st.caption("Modalità: Assegni Extra + Bonus Stefano pro-rata")
 
 # --- RIEPILOGO VISIVO ---
 col1, col2, col3, col4 = st.columns(4)
 with col1:
-    st.metric("Reddito Reale Stefano", f"CHF {basis_stefano:,.0f}")
+    st.metric("Reddito Reale Stefano", f"CHF {basis_stefano:,.0f}", delta=f"include +{bonus_mensile:.0f} bonus/m")
     st.progress(quote_stefano, text=f"{quote_stefano*100:.1f}%")
 with col2:
     st.metric("Reddito Reale Stephanie", f"CHF {basis_stephanie:,.0f}")
     st.progress(quote_stephanie, text=f"{quote_stephanie*100:.1f}%")
 with col3:
     st.metric("Spese da Coprire", f"CHF {budget_ziel:,.0f}")
-    st.caption("Coperte 100% dagli stipendi")
 with col4:
-    # Mostriamo quanto entra VERAMENTE nel conto comune
     total_in_c_comune = budget_ziel + total_zulagen
-    st.metric("Entrata Reale C. Comune", f"CHF {total_in_c_comune:,.0f}", delta=f"+ CHF {total_zulagen:.0f} Surplus (Assegni)")
+    st.metric("Entrata Reale C. Comune", f"CHF {total_in_c_comune:,.0f}", delta=f"+ CHF {total_zulagen:.0f} Surplus")
 
 st.divider()
 
@@ -152,11 +158,3 @@ with st.expander("📋 Tabella Dettagliata (Copia per Excel/Archivio)"):
         "Importo (CHF)": [zulagen_stefano, zulagen_stephanie, transfer_stefano_budget, transfer_stephanie_budget, schuld_stefano_total]
     })
     st.dataframe(df.style.format({"Importo (CHF)": "{:.2f}"}), use_container_width=True, hide_index=True)
-    
-    st.markdown(f"""
-    ---
-    **Nota Contabile:**
-    * Il fabbisogno mensile è **CHF {budget_ziel:,.2f}**.
-    * I bonifici "Quota Spese" coprono esattamente questa cifra.
-    * Gli assegni familiari (**CHF {total_zulagen:,.2f}**) sono liquidità aggiuntiva che si accumula nel conto comune.
-    """)
