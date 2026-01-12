@@ -4,7 +4,7 @@ import pandas as pd
 # -----------------------------------------------------------------------------
 # 0. CONFIGURAZIONE PAGINA
 # -----------------------------------------------------------------------------
-st.set_page_config(page_title="Finanze Familiari v3", page_icon="🇨🇭", layout="wide")
+st.set_page_config(page_title="Finanze Familiari v4 (Accumulo)", page_icon="🇨🇭", layout="wide")
 
 # -----------------------------------------------------------------------------
 # 1. INPUT (BARRA LATERALE - SINISTRA)
@@ -48,7 +48,7 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # --- SEZIONE BUDGET (NUOVA) ---
+    # --- SEZIONE BUDGET ---
     st.header("3. Spese Comuni")
     
     costo_affitto = st.number_input("Affitto & Spese", value=3000.0, step=50.0, key="costo_affitto")
@@ -57,13 +57,14 @@ with st.sidebar:
     
     # Somma automatica
     budget_ziel = costo_affitto + costo_krippe + costo_spese
-    st.markdown(f"### Totale: CHF {budget_ziel:,.2f}")
+    st.markdown(f"### Totale Spese: CHF {budget_ziel:,.2f}")
 
 # -----------------------------------------------------------------------------
 # 2. LOGICA DI CALCOLO
 # -----------------------------------------------------------------------------
 
-# A. Reddito Reale (Ricostruzione imponibile)
+# A. Reddito Reale (Ricostruzione imponibile per il Ratio)
+# Nota: Gli assegni vengono tolti dal calcolo del "peso economico" perché sono extra.
 basis_stefano = lohn_stefano - zulagen_stefano
 basis_stephanie = (lohn_stephanie - zulagen_stephanie) + total_abzug_kk
 total_basis = basis_stefano + basis_stephanie
@@ -76,9 +77,11 @@ else:
     quote_stefano = 0.5
     quote_stephanie = 0.5
 
-# C. Finanziamento Budget
+# C. Finanziamento Budget (LOGICA CAMBIATA v4)
+# Gli assegni sono "On Top" (Soldi gratis).
+# Le spese comuni vengono divise interamente sugli stipendi.
 total_zulagen = zulagen_stefano + zulagen_stephanie
-restfinanzierung = budget_ziel - total_zulagen
+restfinanzierung = budget_ziel # Nessuna sottrazione degli assegni qui!
 
 transfer_stefano_budget = restfinanzierung * quote_stefano
 transfer_stephanie_budget = restfinanzierung * quote_stephanie
@@ -91,6 +94,7 @@ schuld_stefano_total = anteil_stefano_kk + (anteil_kinder_kk * quote_stefano)
 # -----------------------------------------------------------------------------
 
 st.title("🇨🇭 Gestione Finanze: Stefano & Stephanie")
+st.caption("Modalità: Assegni = Risparmio Extra (On Top)")
 
 # --- RIEPILOGO VISIVO ---
 col1, col2, col3, col4 = st.columns(4)
@@ -101,10 +105,12 @@ with col2:
     st.metric("Reddito Reale Stephanie", f"CHF {basis_stephanie:,.0f}")
     st.progress(quote_stephanie, text=f"{quote_stephanie*100:.1f}%")
 with col3:
-    st.metric("Budget Comune Totale", f"CHF {budget_ziel:,.0f}")
-    st.caption(f"Affitto: {costo_affitto:.0f} | Krippe: {costo_krippe:.0f} | Spese: {costo_spese:.0f}")
+    st.metric("Spese da Coprire", f"CHF {budget_ziel:,.0f}")
+    st.caption("Coperte 100% dagli stipendi")
 with col4:
-    st.metric("Da finanziare (No Assegni)", f"CHF {restfinanzierung:,.0f}", delta=f"- CHF {total_zulagen:.0f} Assegni", delta_color="off")
+    # Mostriamo quanto entra VERAMENTE nel conto comune
+    total_in_c_comune = budget_ziel + total_zulagen
+    st.metric("Entrata Reale C. Comune", f"CHF {total_in_c_comune:,.0f}", delta=f"+ CHF {total_zulagen:.0f} Surplus (Assegni)")
 
 st.divider()
 
@@ -117,7 +123,7 @@ col_left, col_right = st.columns(2)
 with col_left:
     st.info("🧑🏻 **STEFANO VERSA:**")
     st.markdown(f"""
-    1.  **Assegni** $\\to$ Conto Comune: `CHF {zulagen_stefano:.2f}`
+    1.  **Assegni (Extra)** $\\to$ Conto Comune: `CHF {zulagen_stefano:.2f}`
     2.  **Spese ({quote_stefano*100:.1f}%)** $\\to$ Conto Comune: `CHF {transfer_stefano_budget:,.2f}`
     3.  **Salute** $\\to$ Stephanie: `CHF {schuld_stefano_total:,.2f}`
     """)
@@ -128,7 +134,7 @@ with col_left:
 with col_right:
     st.success("👩🏼 **STEPHANIE VERSA:**")
     st.markdown(f"""
-    1.  **Assegni** $\\to$ Conto Comune: `CHF {zulagen_stephanie:.2f}`
+    1.  **Assegni (Extra)** $\\to$ Conto Comune: `CHF {zulagen_stephanie:.2f}`
     2.  **Spese ({quote_stephanie*100:.1f}%)** $\\to$ Conto Comune: `CHF {transfer_stephanie_budget:,.2f}`
     3.  **Salute**: *(Riceve rimborso da Stefano)*
     """)
@@ -142,14 +148,15 @@ with st.expander("📋 Tabella Dettagliata (Copia per Excel/Archivio)"):
     df = pd.DataFrame({
         "Da Chi": ["Stefano", "Stephanie", "Stefano", "Stephanie", "Stefano"],
         "A Chi": ["C. Comune", "C. Comune", "C. Comune", "C. Comune", "Stephanie"],
-        "Causale": ["Assegni", "Assegni", "Quota Spese", "Quota Spese", "Rimborso Salute"],
+        "Causale": ["Assegni (Extra)", "Assegni (Extra)", "Quota Spese", "Quota Spese", "Rimborso Salute"],
         "Importo (CHF)": [zulagen_stefano, zulagen_stephanie, transfer_stefano_budget, transfer_stephanie_budget, schuld_stefano_total]
     })
     st.dataframe(df.style.format({"Importo (CHF)": "{:.2f}"}), use_container_width=True, hide_index=True)
     
-    st.markdown("#### Dettaglio Rimborso Salute (S -> S)")
     st.markdown(f"""
-    * Quota Stefano (100%): CHF {anteil_stefano_kk:.2f}
-    * Quota Figlie ({quote_stefano*100:.1f}% di {anteil_kinder_kk}): CHF {anteil_kinder_kk * quote_stefano:.2f}
-    * **Totale**: CHF {schuld_stefano_total:.2f}
+    ---
+    **Nota Contabile:**
+    * Il fabbisogno mensile è **CHF {budget_ziel:,.2f}**.
+    * I bonifici "Quota Spese" coprono esattamente questa cifra.
+    * Gli assegni familiari (**CHF {total_zulagen:,.2f}**) sono liquidità aggiuntiva che si accumula nel conto comune.
     """)
