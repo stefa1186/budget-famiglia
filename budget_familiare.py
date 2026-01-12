@@ -59,4 +59,77 @@ total_basis = basis_stefano + basis_stephanie
 
 # 2. Berechnung des Verteilschlüssels
 if total_basis > 0:
-    quote_stefano = basis_stef
+    quote_stefano = basis_stefano / total_basis
+    quote_stephanie = basis_stephanie / total_basis
+else:
+    quote_stefano = 0.5
+    quote_stephanie = 0.5
+
+# 3. Finanzierung des Gemeinschaftskontos
+total_zulagen = zulagen_stefano + zulagen_stephanie
+restfinanzierung = budget_ziel - total_zulagen
+
+transfer_stefano_budget = restfinanzierung * quote_stefano
+transfer_stephanie_budget = restfinanzierung * quote_stephanie
+
+# 4. Berechnung der privaten Rückerstattung
+schuld_stefano_total = anteil_stefano_kk + (anteil_kinder_kk * quote_stefano)
+
+# -----------------------------------------------------------------------------
+# ANZEIGE (OUTPUT UI)
+# -----------------------------------------------------------------------------
+
+st.header("📊 Analisi del Mese")
+
+col1, col2, col3 = st.columns(3)
+with col1:
+    st.metric("Reddito Reale Stefano", f"CHF {basis_stefano:,.0f}".replace(",", "'"))
+    st.caption(f"Ratio: {quote_stefano*100:.1f}%")
+with col2:
+    st.metric("Reddito Reale Stephanie", f"CHF {basis_stephanie:,.0f}".replace(",", "'"))
+    st.caption(f"Ratio: {quote_stephanie*100:.1f}%")
+with col3:
+    st.metric("Totale Potenza Famiglia", f"CHF {total_basis:,.0f}".replace(",", "'"))
+
+st.divider()
+
+st.subheader("🚀 Lista Bonifici da Eseguire")
+st.markdown("Effettuate questi 5 bonifici esatti per bilanciare tutto perfettamente.")
+
+# A. Zulagen
+with st.container():
+    st.markdown("#### A. Trasferimento Assegni Familiari (al Conto Comune)")
+    c1, c2 = st.columns(2)
+    c1.success(f"**Stefano versa:** CHF {zulagen_stefano:.2f}")
+    c2.success(f"**Stephanie versa:** CHF {zulagen_stephanie:.2f}")
+
+# B. Budget
+with st.container():
+    st.markdown("#### B. Contributo Spese Comuni (al Conto Comune)")
+    st.caption(f"Necessari CHF {restfinanzierung:,.2f} divisi in base al reddito reale.")
+    c1, c2 = st.columns(2)
+    c1.info(f"**Stefano versa:** CHF {transfer_stefano_budget:,.2f}")
+    c2.info(f"**Stephanie versa:** CHF {transfer_stephanie_budget:,.2f}")
+
+# C. Rimborso Salute
+with st.container():
+    st.markdown("#### C. Rimborso Salute (da Stefano a Stephanie)")
+    st.warning(f"**Stefano versa a Stephanie:** CHF {schuld_stefano_total:,.2f}")
+    with st.expander("Dettaglio del calcolo rimborso"):
+        st.write(f"- 100% Salute Stefano: CHF {anteil_stefano_kk:.2f}")
+        st.write(f"- {quote_stefano*100:.1f}% Salute Figlie ({anteil_kinder_kk}): CHF {anteil_kinder_kk * quote_stefano:.2f}")
+        st.write(f"**Totale:** CHF {schuld_stefano_total:.2f}")
+
+st.divider()
+
+# Zusammenfassungstabelle
+st.subheader("📝 Riepilogo per Archivio")
+df_summary = pd.DataFrame({
+    "Descrizione": ["Versamento Stefano (Assegni)", "Versamento Stephanie (Assegni)", 
+                    "Versamento Stefano (Spese)", "Versamento Stephanie (Spese)", 
+                    "Rimborso Salute (S->S)"],
+    "Destinatario": ["Conto Comune", "Conto Comune", "Conto Comune", "Conto Comune", "Privato Stephanie"],
+    "Importo (CHF)": [zulagen_stefano, zulagen_stephanie, transfer_stefano_budget, 
+                      transfer_stephanie_budget, schuld_stefano_total]
+})
+st.table(df_summary.style.format({"Importo (CHF)": "{:.2f}"}))
